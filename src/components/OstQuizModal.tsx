@@ -3,6 +3,8 @@ import { Boxes, CheckCircle2, HelpCircle, ShieldAlert, X, XCircle } from 'lucide
 import { OST_TOPICS } from '../data/ostQuestions';
 import { OstQuestion } from '../data/ostQuestions/types';
 import { soundEngine } from '../audio/soundEngine';
+import { MathNumericInput } from './MathNumericInput';
+import { MathText } from './MathText';
 import { OstVisualRenderer } from './OstVisualRenderer';
 
 export type QuizTriggerReason = 'blocks' | 'death-revive' | 'death-final' | 'practice';
@@ -17,11 +19,114 @@ interface OstQuizModalProps {
 }
 
 function normalizeAnswer(raw: string): string {
-  return raw
+  const supMap: Record<string, string> = {
+    '⁰': '0',
+    '¹': '1',
+    '²': '2',
+    '³': '3',
+    '⁴': '4',
+    '⁵': '5',
+    '⁶': '6',
+    '⁷': '7',
+    '⁸': '8',
+    '⁹': '9',
+  };
+  let out = raw
     .trim()
     .toLowerCase()
     .replace(/−/g, '-')
-    .replace(/[$,%\s]/g, '');
+    .replace(/[$,%\s,]/g, '');
+  // Convert Unicode superscript runs like 2⁻² or x² to ^-2 / ^2
+  out = out.replace(/[⁺⁻⁰¹²³⁴⁵⁶⁷⁸⁹]+/g, (run) => {
+    const mapped = run
+      .split('')
+      .map((ch) => (ch === '⁺' ? '+' : ch === '⁻' ? '-' : supMap[ch] ?? ch))
+      .join('');
+    return `^(${mapped})`;
+  });
+  return out;
+}
+
+function evaluateNumericExpression(expr: string): number | null {
+  if (!expr) return null;
+  let pos = 0;
+
+  const peek = () => expr[pos];
+  const consume = () => expr[pos++];
+
+  const parseExpr = (): number | null => {
+    let val = parseTerm();
+    if (val === null) return null;
+    while (peek() === '+' || peek() === '-') {
+      const op = consume();
+      const rhs = parseTerm();
+      if (rhs === null) return null;
+      val = op === '+' ? val + rhs : val - rhs;
+    }
+    return Number.isFinite(val) ? val : null;
+  };
+
+  const parseTerm = (): number | null => {
+    let val = parseUnary();
+    if (val === null) return null;
+    while (peek() === '*' || peek() === '/') {
+      const op = consume();
+      const rhs = parseUnary();
+      if (rhs === null) return null;
+      if (op === '/' && rhs === 0) return null;
+      val = op === '*' ? val * rhs : val / rhs;
+    }
+    return Number.isFinite(val) ? val : null;
+  };
+
+  const parseUnary = (): number | null => {
+    if (peek() === '+') {
+      consume();
+      return parseUnary();
+    }
+    if (peek() === '-') {
+      consume();
+      const inner = parseUnary();
+      return inner === null ? null : -inner;
+    }
+    return parsePower();
+  };
+
+  const parsePower = (): number | null => {
+    const base = parsePrimary();
+    if (base === null) return null;
+    if (peek() === '^') {
+      consume();
+      const exp = parseUnary();
+      if (exp === null) return null;
+      const result = Math.pow(base, exp);
+      return Number.isFinite(result) ? result : null;
+    }
+    return base;
+  };
+
+  const parsePrimary = (): number | null => {
+    if (peek() === '(') {
+      consume();
+      const inner = parseExpr();
+      if (inner === null || peek() !== ')') return null;
+      consume();
+      return inner;
+    }
+    const start = pos;
+    let sawDigit = false;
+    while (pos < expr.length && (/[0-9]/.test(expr[pos]) || expr[pos] === '.')) {
+      if (/[0-9]/.test(expr[pos])) sawDigit = true;
+      pos++;
+    }
+    if (!sawDigit) return null;
+    const num = Number(expr.slice(start, pos));
+    return Number.isFinite(num) ? num : null;
+  };
+
+  const result = parseExpr();
+  if (result === null || pos !== expr.length) return null;
+  return result;
 }
 
 function isNumericAnswerCorrect(input: string, acceptable: string[]): boolean {
@@ -33,27 +138,11 @@ function isNumericAnswerCorrect(input: string, acceptable: string[]): boolean {
     if (norm === normAns) return true;
   }
 
-  // Also compare numeric float values (handles fractions like 3/2 == 1.5 or 1.50 == 1.5)
-  const parseNum = (s: string): number | null => {
-    if (s.includes('/')) {
-      const parts = s.split('/');
-      if (parts.length === 2) {
-        const num = Number(parts[0]);
-        const den = Number(parts[1]);
-        if (Number.isFinite(num) && Number.isFinite(den) && den !== 0) {
-          return num / den;
-        }
-      }
-      return null;
-    }
-    const val = Number(s);
-    return Number.isFinite(val) ? val : null;
-  };
-
-  const userNum = parseNum(norm);
+  // Compare evaluated numeric values (supports fractions like 3/2 == 1.5 and exponents like 2^3 == 8)
+  const userNum = evaluateNumericExpression(norm);
   if (userNum !== null) {
     for (const ans of acceptable) {
-      const ansNum = parseNum(normalizeAnswer(ans));
+      const ansNum = evaluateNumericExpression(normalizeAnswer(ans));
       if (ansNum !== null && Math.abs(userNum - ansNum) < 0.001) {
         return true;
       }
@@ -198,9 +287,9 @@ export const OstQuizModal: React.FC<OstQuizModalProps> = ({
         <div className="p-5 space-y-4 max-h-[78vh] overflow-y-auto">
           <h3
             id="ost-quiz-title"
-            className="text-base sm:text-lg font-semibold text-slate-100 leading-snug"
+            className="text-base sm:text-lg font-semibold text-slate-100 leading-relaxed"
           >
-            {question.prompt}
+            <MathText text={question.prompt} />
           </h3>
 
           {question.visual && <OstVisualRenderer visual={question.visual} />}
@@ -218,7 +307,7 @@ export const OstQuizModal: React.FC<OstQuizModalProps> = ({
               </button>
               {showHint && (
                 <p className="mt-2 text-xs text-amber-200/90 bg-amber-500/10 border border-amber-500/25 rounded-xl px-3.5 py-2.5 leading-relaxed">
-                  {question.hint}
+                  <MathText text={question.hint} />
                 </p>
               )}
             </div>
@@ -255,7 +344,9 @@ export const OstQuizModal: React.FC<OstQuizModalProps> = ({
                       <span className="w-6 h-6 rounded-md bg-slate-900/70 border border-slate-700/70 flex items-center justify-center text-xs font-mono text-slate-300 shrink-0">
                         {String.fromCharCode(65 + idx)}
                       </span>
-                      <span className="break-words">{opt}</span>
+                      <span className="break-words leading-relaxed">
+                        <MathText text={opt} />
+                      </span>
                     </span>
                     {submitted && isRightOption && (
                       <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -306,7 +397,9 @@ export const OstQuizModal: React.FC<OstQuizModalProps> = ({
                       >
                         {checked && <span className="text-[11px] font-bold">✓</span>}
                       </span>
-                      <span className="font-mono text-sm">{opt}</span>
+                      <span className="font-mono text-sm leading-relaxed">
+                        <MathText text={opt} />
+                      </span>
                     </button>
                   );
                 })}
@@ -326,27 +419,14 @@ export const OstQuizModal: React.FC<OstQuizModalProps> = ({
 
           {question.type === 'numeric' && (
             <form onSubmit={handleNumericSubmit} className="space-y-3">
-              <div className="flex items-center gap-2">
-                {question.answerPrefix && (
-                  <span className="font-mono text-sm text-slate-300 shrink-0">
-                    {question.answerPrefix}
-                  </span>
-                )}
-                <input
-                  type="text"
-                  autoFocus
-                  disabled={submitted}
-                  value={numericInput}
-                  onChange={(e) => setNumericInput(e.target.value)}
-                  placeholder="Type your answer (e.g. 6 or 1.5 or 3/2)"
-                  className="flex-1 bg-[#0F172A] border border-slate-600 focus:border-amber-400 rounded-xl px-4 py-2.5 text-sm font-mono text-slate-100 outline-none"
-                />
-                {question.answerSuffix && (
-                  <span className="text-sm text-slate-300 shrink-0">
-                    {question.answerSuffix}
-                  </span>
-                )}
-              </div>
+              <MathNumericInput
+                value={numericInput}
+                onChange={setNumericInput}
+                disabled={submitted}
+                prefix={question.answerPrefix}
+                suffix={question.answerSuffix}
+                questionId={question.id}
+              />
               {!submitted && (
                 <button
                   type="submit"
@@ -386,15 +466,19 @@ export const OstQuizModal: React.FC<OstQuizModalProps> = ({
                     <XCircle className="w-5 h-5 text-rose-400 shrink-0" />
                     <span className="text-rose-200">
                       Not quite —{' '}
-                      {question.type === 'numeric' && question.acceptableAnswers
-                        ? `Answer: ${question.acceptableAnswers[0]}`
-                        : 'Review the solution below.'}
+                      {question.type === 'numeric' && question.acceptableAnswers ? (
+                        <>
+                          Answer: <MathText text={question.acceptableAnswers[0]} />
+                        </>
+                      ) : (
+                        'Review the solution below.'
+                      )}
                     </span>
                   </>
                 )}
               </div>
               <p className="text-xs sm:text-sm text-slate-200 leading-relaxed">
-                {question.explanation}
+                <MathText text={question.explanation} />
               </p>
             </div>
           )}

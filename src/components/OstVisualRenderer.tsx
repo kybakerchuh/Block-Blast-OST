@@ -6,6 +6,7 @@ import {
   HistogramSpec,
   OstVisual,
 } from '../data/ostQuestions/types';
+import { MathText } from './MathText';
 
 function SingleGraphSvg({
   xMin,
@@ -738,7 +739,7 @@ export const OstVisualRenderer: React.FC<{ visual: OstVisual }> = ({ visual }) =
       <div className="rounded-xl border border-slate-700/70 bg-[#0F172A] overflow-hidden">
         {visual.title && (
           <div className="px-3.5 py-2 bg-slate-800/70 border-b border-slate-700/70 text-xs font-semibold text-slate-200">
-            {visual.title}
+            <MathText text={visual.title} />
           </div>
         )}
         <div className="overflow-x-auto">
@@ -747,7 +748,7 @@ export const OstVisualRenderer: React.FC<{ visual: OstVisual }> = ({ visual }) =
               <tr className="border-b border-slate-700/60 bg-slate-900/60">
                 {visual.headers.map((h, i) => (
                   <th key={i} className="px-3 py-2 font-semibold text-slate-300">
-                    {h}
+                    <MathText text={h} />
                   </th>
                 ))}
               </tr>
@@ -762,7 +763,7 @@ export const OstVisualRenderer: React.FC<{ visual: OstVisual }> = ({ visual }) =
                         cIdx === 0 ? 'text-slate-300 font-medium' : 'text-slate-100'
                       }`}
                     >
-                      {cell}
+                      <MathText text={String(cell)} />
                     </td>
                   ))}
                 </tr>
