@@ -101,6 +101,12 @@ export const BlockBoard: React.FC<BlockBoardProps> = ({
     return () => window.removeEventListener('resize', updateWidth);
   }, []);
 
+  useEffect(() => {
+    if (disabled) {
+      setDragState(null);
+    }
+  }, [disabled]);
+
   const cellSize = useMemo(() => {
     // 8 cells + padding inside board
     return Math.max(28, (boardWidth - 16) / GRID_SIZE);
@@ -202,6 +208,7 @@ export const BlockBoard: React.FC<BlockBoardProps> = ({
     shape: BlockShape
   ) => {
     if (disabled) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
     e.preventDefault();
     soundEngine.playPickup();
     setSelectedSlot(slotIndex);
@@ -244,7 +251,10 @@ export const BlockBoard: React.FC<BlockBoardProps> = ({
   const clearingColsSet = useMemo(() => new Set(clearingCols), [clearingCols]);
 
   return (
-    <div className="flex flex-col items-center w-full select-none">
+    <div
+      onContextMenu={(e) => e.preventDefault()}
+      className="flex flex-col items-center w-full select-none"
+    >
       {/* 8x8 Center Playfield */}
       <div
         ref={boardRef}

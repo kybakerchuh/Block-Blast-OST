@@ -41,17 +41,22 @@ function SingleGraphSvg({
   const plotW = width - padL - padR;
   const plotH = height - padT - padB;
 
-  const toX = (x: number) => padL + ((x - xMin) / (xMax - xMin)) * plotW;
-  const toY = (y: number) => padT + ((yMax - y) / (yMax - yMin)) * plotH;
+  const safeXSpan = Math.max(1e-6, xMax - xMin);
+  const safeYSpan = Math.max(1e-6, yMax - yMin);
+  const safeXStep = Math.max(0.01, xStep);
+  const safeYStep = Math.max(0.01, yStep);
+
+  const toX = (x: number) => padL + ((x - xMin) / safeXSpan) * plotW;
+  const toY = (y: number) => padT + ((yMax - y) / safeYSpan) * plotH;
 
   const clipId = React.useId();
 
   const xTicks: number[] = [];
-  for (let x = Math.ceil(xMin / xStep) * xStep; x <= xMax + 1e-9; x += xStep) {
+  for (let x = Math.ceil(xMin / safeXStep) * safeXStep; x <= xMax + 1e-9; x += safeXStep) {
     xTicks.push(Number(x.toFixed(2)));
   }
   const yTicks: number[] = [];
-  for (let y = Math.ceil(yMin / yStep) * yStep; y <= yMax + 1e-9; y += yStep) {
+  for (let y = Math.ceil(yMin / safeYStep) * safeYStep; y <= yMax + 1e-9; y += safeYStep) {
     yTicks.push(Number(y.toFixed(2)));
   }
 
@@ -329,10 +334,12 @@ function BoxPlotsSvg({
   const height = padT + plots.length * rowH + padB;
   const plotW = width - padL - padR;
 
-  const toX = (val: number) => padL + ((val - axisMin) / (axisMax - axisMin)) * plotW;
+  const safeSpan = Math.max(1e-6, axisMax - axisMin);
+  const safeStep = Math.max(0.01, step);
+  const toX = (val: number) => padL + ((val - axisMin) / safeSpan) * plotW;
 
   const ticks: number[] = [];
-  for (let v = axisMin; v <= axisMax + 1e-9; v += step) {
+  for (let v = axisMin; v <= axisMax + 1e-9; v += safeStep) {
     ticks.push(Number(v.toFixed(1)));
   }
 
@@ -491,7 +498,8 @@ function DotPlotsSvg({
   const padL = 20;
   const padR = 20;
   const plotW = width - padL - padR;
-  const toX = (val: number) => padL + ((val - axisMin) / (axisMax - axisMin)) * plotW;
+  const safeSpan = Math.max(1e-6, axisMax - axisMin);
+  const toX = (val: number) => padL + ((val - axisMin) / safeSpan) * plotW;
 
   const ticks: number[] = [];
   for (let v = axisMin; v <= axisMax; v++) ticks.push(v);

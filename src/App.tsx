@@ -288,7 +288,11 @@ export default function App() {
       await signInWithPopup(auth, googleProvider);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Sign-in cancelled';
-      if (!msg.includes('popup-closed-by-user')) {
+      if (msg.includes('unauthorized-domain')) {
+        setAuthError(
+          `Add "${window.location.hostname}" to Firebase Console → Authentication → Settings → Authorized domains to enable Google Sign-In here.`
+        );
+      } else if (!msg.includes('popup-closed-by-user')) {
         setAuthError('Google sign-in popup was blocked or failed. Please try again.');
       }
     } finally {
