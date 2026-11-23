@@ -1,0 +1,158 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Private user profile and saved game progress for Block Blast! OST.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 254
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "classicHighScore": {
+          "type": "integer"
+        },
+        "adventureBestScore": {
+          "type": "integer"
+        },
+        "adventureLevel": {
+          "type": "integer"
+        },
+        "totalOstCorrect": {
+          "type": "integer"
+        },
+        "totalOstAttempted": {
+          "type": "integer"
+        },
+        "selectedTopic": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "soundEnabled": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "email",
+        "displayName",
+        "classicHighScore",
+        "adventureBestScore",
+        "adventureLevel",
+        "totalOstCorrect",
+        "totalOstAttempted",
+        "selectedTopic",
+        "soundEnabled",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "TopicProgress": {
+      "title": "TopicProgress",
+      "description": "Per-topic Algebra 1 OST question mastery counters owned by a user.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "topicId": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "correctCount": {
+          "type": "integer"
+        },
+        "attemptedCount": {
+          "type": "integer"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "topicId",
+        "correctCount",
+        "attemptedCount",
+        "updatedAt"
+      ]
+    },
+    "LeaderboardEntry": {
+      "title": "LeaderboardEntry",
+      "description": "Public leaderboard entry containing non-PII display name, high score, and OST question counts.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "highScore": {
+          "type": "integer"
+        },
+        "ostCorrectCount": {
+          "type": "integer"
+        },
+        "ostAttemptedCount": {
+          "type": "integer"
+        },
+        "adventureLevel": {
+          "type": "integer"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "highScore",
+        "ostCorrectCount",
+        "ostAttemptedCount",
+        "adventureLevel",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private user progress document restricted strictly to the owning authenticated user."
+    },
+    "/users/{userId}/topicProgress/{topicId}": {
+      "schema": { "$ref": "#/entities/TopicProgress" },
+      "description": "Per-topic OST progress subcollection restricted strictly to the owning authenticated user."
+    },
+    "/leaderboard/{userId}": {
+      "schema": { "$ref": "#/entities/LeaderboardEntry" },
+      "description": "Public leaderboard entries readable for rankings, writable only by the authenticated owner."
+    }
+  }
+}

@@ -1,0 +1,153 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isVerifiedUser() && request.auth.uid == userId;
+    }
+
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll([
+        'uid', 'email', 'displayName', 'classicHighScore', 'adventureBestScore',
+        'adventureLevel', 'totalOstCorrect', 'totalOstAttempted', 'selectedTopic',
+        'soundEnabled', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'uid', 'email', 'displayName', 'classicHighScore', 'adventureBestScore',
+        'adventureLevel', 'totalOstCorrect', 'totalOstAttempted', 'selectedTopic',
+        'soundEnabled', 'createdAt', 'updatedAt'
+      ]) &&
+      data.uid is string && data.uid == userId && isValidId(data.uid) &&
+      data.email is string && data.email.size() <= 254 &&
+      data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 60 &&
+      data.classicHighScore is int && data.classicHighScore >= 0 && data.classicHighScore <= 10000000 &&
+      data.adventureBestScore is int && data.adventureBestScore >= 0 && data.adventureBestScore <= 10000000 &&
+      data.adventureLevel is int && data.adventureLevel >= 1 && data.adventureLevel <= 1000 &&
+      data.totalOstCorrect is int && data.totalOstCorrect >= 0 && data.totalOstCorrect <= 1000000 &&
+      data.totalOstAttempted is int && data.totalOstAttempted >= 0 && data.totalOstAttempted <= 1000000 &&
+      data.totalOstCorrect <= data.totalOstAttempted &&
+      data.selectedTopic is string && data.selectedTopic.size() >= 1 && data.selectedTopic.size() <= 64 &&
+      data.selectedTopic.matches('^[a-zA-Z0-9_\\-]+$') &&
+      data.soundEnabled is bool &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    function isValidTopicProgress(data, userId, topicId) {
+      return data.keys().hasAll(['uid', 'topicId', 'correctCount', 'attemptedCount', 'updatedAt']) &&
+      data.keys().hasOnly(['uid', 'topicId', 'correctCount', 'attemptedCount', 'updatedAt']) &&
+      data.uid is string && data.uid == userId && isValidId(data.uid) &&
+      data.topicId is string && data.topicId == topicId && data.topicId.size() <= 64 &&
+      data.topicId.matches('^[a-zA-Z0-9_\\-]+$') &&
+      data.correctCount is int && data.correctCount >= 0 && data.correctCount <= 1000000 &&
+      data.attemptedCount is int && data.attemptedCount >= 0 && data.attemptedCount <= 1000000 &&
+      data.correctCount <= data.attemptedCount &&
+      data.updatedAt is timestamp;
+    }
+
+    function isValidLeaderboardEntry(data, userId) {
+      return data.keys().hasAll([
+        'uid', 'displayName', 'highScore', 'ostCorrectCount', 'ostAttemptedCount',
+        'adventureLevel', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'uid', 'displayName', 'highScore', 'ostCorrectCount', 'ostAttemptedCount',
+        'adventureLevel', 'updatedAt'
+      ]) &&
+      data.uid is string && data.uid == userId && isValidId(data.uid) &&
+      data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 60 &&
+      data.highScore is int && data.highScore >= 0 && data.highScore <= 10000000 &&
+      data.ostCorrectCount is int && data.ostCorrectCount >= 0 && data.ostCorrectCount <= 1000000 &&
+      data.ostAttemptedCount is int && data.ostAttemptedCount >= 0 && data.ostAttemptedCount <= 1000000 &&
+      data.ostCorrectCount <= data.ostAttemptedCount &&
+      data.adventureLevel is int && data.adventureLevel >= 1 && data.adventureLevel <= 1000 &&
+      data.updatedAt is timestamp;
+    }
+
+    match /users/{userId} {
+      allow get: if isValidId(userId) && isOwner(userId);
+      allow list: if false;
+      allow create: if isValidId(userId) &&
+        isOwner(userId) &&
+        isValidUserProfile(incoming(), userId) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(userId) &&
+        isOwner(userId) &&
+        isValidUserProfile(incoming(), userId) &&
+        incoming().uid == existing().uid &&
+        incoming().email == existing().email &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'classicHighScore', 'adventureBestScore', 'adventureLevel',
+          'totalOstCorrect', 'totalOstAttempted', 'selectedTopic',
+          'soundEnabled', 'displayName', 'updatedAt'
+        ]);
+      allow delete: if false;
+
+      match /topicProgress/{topicId} {
+        allow get: if isValidId(userId) && isValidId(topicId) && isOwner(userId) &&
+          get(/databases/$(database)/documents/users/$(userId)).data.uid == request.auth.uid;
+        allow list: if isValidId(userId) && isOwner(userId) && resource.data.uid == request.auth.uid;
+        allow create: if isValidId(userId) && isValidId(topicId) &&
+          isOwner(userId) &&
+          isValidTopicProgress(incoming(), userId, topicId) &&
+          incoming().updatedAt == request.time &&
+          get(/databases/$(database)/documents/users/$(userId)).data.uid == request.auth.uid;
+        allow update: if isValidId(userId) && isValidId(topicId) &&
+          isOwner(userId) &&
+          isValidTopicProgress(incoming(), userId, topicId) &&
+          incoming().uid == existing().uid &&
+          incoming().topicId == existing().topicId &&
+          incoming().updatedAt == request.time &&
+          get(/databases/$(database)/documents/users/$(userId)).data.uid == request.auth.uid &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['correctCount', 'attemptedCount', 'updatedAt']);
+        allow delete: if false;
+      }
+    }
+
+    match /leaderboard/{userId} {
+      allow get: if isValidId(userId);
+      allow list: if resource.data.highScore >= 0 && resource.data.ostCorrectCount >= 0;
+      allow create: if isValidId(userId) &&
+        isOwner(userId) &&
+        isValidLeaderboardEntry(incoming(), userId) &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(userId) &&
+        isOwner(userId) &&
+        isValidLeaderboardEntry(incoming(), userId) &&
+        incoming().uid == existing().uid &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'displayName', 'highScore', 'ostCorrectCount',
+          'ostAttemptedCount', 'adventureLevel', 'updatedAt'
+        ]);
+      allow delete: if false;
+    }
+  }
+}

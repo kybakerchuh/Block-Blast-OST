@@ -1,0 +1,6 @@
+{
+  "name": "Block Blast! OST",
+  "description": "Block Blast! puzzle game integrated with Algebra 1 OST Playbook questions, topic mastery, Google account cloud saves, and global leaderboards.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
